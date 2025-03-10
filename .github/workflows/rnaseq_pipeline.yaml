@@ -1,0 +1,88 @@
+name: Bulk RNA-Seq Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  bulk_rnaseq:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Simulate Mac Terminal Execution
+        run: |
+          echo "utsabghimire@Utsabs-MacBook-Air ~ % Users/utsabghimire/.zprofile:22: command not found: brew"
+          echo "utsabghimire@Utsabs-MacBook-Air ~ % ssh hpg"
+
+      - name: Submit job to UF HiPerGator
+        run: |
+          ssh hpg <<EOF
+          #!/bin/bash
+          #SBATCH --job-name=bulk_rnaseq
+          #SBATCH --output=bulk_rnaseq.out
+          #SBATCH --error=bulk_rnaseq.err
+          #SBATCH --time=06:00:00
+          #SBATCH --account=gms6231
+          #SBATCH --qos=gms6231
+          #SBATCH --partition=hpg2-compute
+          #SBATCH --ntasks=1
+          #SBATCH --cpus-per-task=8
+          #SBATCH --mem=64G
+
+          module load fastqc/0.11.7
+          module load multiqc/1.9
+          module load trimmomatic/0.39
+          module load hisat2/2.2.1
+          module load samtools/1.10
+          module load subread/2.0.1
+
+          mkdir -p /blue/postharvest/utsab.ghimire/posharvest.march.data/RNA_Analysis
+          cd /blue/postharvest/utsab.ghimire/posharvest.march.data/RNA_Analysis
+
+          # Step 1: Quality Control (FastQC)
+          mkdir -p QC_reports
+          fastqc -o QC_reports /blue/postharvest/utsab.ghimire/posharvest.march.data/*_r1.fastq.gz
+          fastqc -o QC_reports /blue/postharvest/utsab.ghimire/posharvest.march.data/*_r2.fastq.gz
+
+          # Step 2: Aggregate QC reports with MultiQC
+          multiqc QC_reports -o QC_reports
+
+          # Step 3: Read Trimming (Trimmomatic)
+          mkdir -p Trimmed_Reads
+          for sample in \$(ls /blue/postharvest/utsab.ghimire/posharvest.march.data/*_r1.fastq.gz); do
+            prefix=\$(basename \$sample "_r1.fastq.gz")
+            trimmomatic PE -phred33 \\
+              /blue/postharvest/utsab.ghimire/posharvest.march.data/\${prefix}_r1.fastq.gz \\
+              /blue/postharvest/utsab.ghimire/posharvest.march.data/\${prefix}_r2.fastq.gz \\
+              Trimmed_Reads/\${prefix}_r1_1P.fastq.gz Trimmed_Reads/\${prefix}_r1_1U.fastq.gz \\
+              Trimmed_Reads/\${prefix}_r2_2P.fastq.gz Trimmed_Reads/\${prefix}_r2_2U.fastq.gz \\
+              ILLUMINACLIP:\$HPC_TRIMMOMATIC_ADAPTER/TruSeq3-PE.fa:2:30:10 \\
+              LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:36
+          done
+
+          # Step 4: Alignment with HISAT2
+          mkdir -p Aligned_Reads
+          for sample in \$(ls Trimmed_Reads/*_r1_1P.fastq.gz); do
+            prefix=\$(basename \$sample "_r1_1P.fastq.gz")
+            hisat2 -p 8 --rg-id=\${prefix} --rg PL:ILLUMINA \\
+              -x /blue/postharvest/utsab.ghimire/posharvest.march.data/Brassicaoleracea_index \\
+              --dta --rna-strandness RF \\
+              -1 Trimmed_Reads/\${prefix}_r1_1P.fastq.gz \\
+              -2 Trimmed_Reads/\${prefix}_r2_2P.fastq.gz \\
+              -S Aligned_Reads/\${prefix}.sam
+          done
+
+          # Step 5: Convert SAM to BAM, sort, and index
+          for sample in \$(ls Aligned_Reads/*.sam); do
+            prefix=\$(basename \$sample ".sam")
+            samtools view -bS Aligned_Reads/\${prefix}.sam | samtools sort -o Aligned_Reads/\${prefix}.bam
+            samtools index Aligned_Reads/\${prefix}.bam
+            rm Aligned_Reads/\${prefix}.sam
+          done
+          EOF
+
