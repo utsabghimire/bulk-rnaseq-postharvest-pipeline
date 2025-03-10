@@ -21,7 +21,7 @@ jobs:
 
       - name: Submit job to UF HiPerGator
         run: |
-          ssh hpg <<EOF
+          ssh utsab.ghimire@ hpg.rc.ufl.edu <<EOF
           #!/bin/bash
           #SBATCH --job-name=bulk_rnaseq
           #SBATCH --output=bulk_rnaseq.out
