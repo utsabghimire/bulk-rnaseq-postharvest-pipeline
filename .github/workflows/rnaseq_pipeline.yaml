@@ -1,9 +1,7 @@
 name: Bulk RNA-Seq Pipeline
 
 on:
-  push:
-    branches:
-      - main
+  
   workflow_dispatch:
 
 jobs:
