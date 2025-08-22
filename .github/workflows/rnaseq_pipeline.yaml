@@ -42,7 +42,7 @@ jobs:
           mkdir -p /blue/postharvest/utsab.ghimire/posharvest.march.data/RNA_Analysis
           cd /blue/postharvest/utsab.ghimire/posharvest.march.data/RNA_Analysis
 
-          # Step 1: Quality Control (FastQC)
+          # Step 1: Quality Control (FastQC.)
           mkdir -p QC_reports
           fastqc -o QC_reports /blue/postharvest/utsab.ghimire/posharvest.march.data/*_r1.fastq.gz
           fastqc -o QC_reports /blue/postharvest/utsab.ghimire/posharvest.march.data/*_r2.fastq.gz
